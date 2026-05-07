@@ -38,6 +38,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
   const getDueState = useCallback((dueDate) => {
@@ -125,10 +126,37 @@ export default function Home() {
     return () => window.clearInterval(clock);
   }, []);
 
-  const clearForm = () => {
+  const clearForm = useCallback(() => {
     setForm(emptyForm);
     setEditingId(null);
-  };
+  }, []);
+
+  const closeTaskModal = useCallback(() => {
+    clearForm();
+    setIsTaskModalOpen(false);
+  }, [clearForm]);
+
+  useEffect(() => {
+    if (!isTaskModalOpen) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closeTaskModal();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeTaskModal, isTaskModalOpen]);
 
   const createTask = async () => {
     if (!form.title.trim() || !form.description.trim()) {
@@ -148,6 +176,7 @@ export default function Home() {
       toast.success("Task created successfully");
       await fetchTasks();
       clearForm();
+      setIsTaskModalOpen(false);
     } catch (error) {
       toast.error("Failed to create task");
     }
@@ -181,11 +210,7 @@ export default function Home() {
     });
 
     setEditingId(task.id);
-
-    window.scrollTo({
-      top: document.body.scrollHeight,
-      behavior: "smooth",
-    });
+    setIsTaskModalOpen(true);
   };
 
   const updateTask = async () => {
@@ -206,6 +231,7 @@ export default function Home() {
       toast.success("Task updated successfully");
       await fetchTasks();
       clearForm();
+      setIsTaskModalOpen(false);
     } catch (error) {
       toast.error("Failed to update task");
     }
@@ -322,8 +348,18 @@ export default function Home() {
       <nav className="sticky top-0 z-50 border-b border-white/10 bg-[#08111f]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-300 text-xl font-black text-slate-950 shadow-lg shadow-emerald-950/30">
-              T
+            <div
+              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-300 shadow-lg shadow-emerald-950/30"
+              aria-hidden="true"
+            >
+              <div className="relative h-7 w-7 rounded-xl bg-slate-950/95 p-1.5">
+                <span className="absolute left-2 top-2 h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                <span className="absolute left-4 top-2.5 h-1 w-2.5 rounded-full bg-emerald-100" />
+                <span className="absolute left-2 top-3.5 h-2 w-2 rotate-45 border-b-2 border-r-2 border-emerald-300" />
+                <span className="absolute left-4 top-4 h-1 w-2.5 rounded-full bg-emerald-100" />
+                <span className="absolute left-2 bottom-2 h-1.5 w-1.5 rounded-full bg-emerald-300/70" />
+                <span className="absolute left-4 bottom-2 h-1 w-2.5 rounded-full bg-emerald-100/80" />
+              </div>
             </div>
             <div>
               <h1 className="text-xl font-black tracking-normal">TaskFlow</h1>
@@ -339,10 +375,7 @@ export default function Home() {
             <button
               onClick={() => {
                 clearForm();
-                window.scrollTo({
-                  top: document.body.scrollHeight,
-                  behavior: "smooth",
-                });
+                setIsTaskModalOpen(true);
               }}
               className="rounded-xl bg-emerald-300 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-emerald-200"
             >
@@ -542,94 +575,122 @@ export default function Home() {
           </section>
         )}
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl shadow-black/10">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-2xl font-black">{editingId ? "Edit Task" : "Create Task"}</h2>
-              <p className="mt-1 text-sm text-slate-400">
-                Keep the title clear, add context, then assign priority and timing.
-              </p>
-            </div>
-            {editingId && (
+      </div>
+
+      {isTaskModalOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/70 px-4 py-8 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeTaskModal();
+            }
+          }}
+          role="presentation"
+        >
+          <section
+            aria-modal="true"
+            role="dialog"
+            aria-labelledby="task-modal-title"
+            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-950 p-6 shadow-2xl"
+          >
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <h2 id="task-modal-title" className="text-2xl font-black">
+                  {editingId ? "Edit Task" : "Create Task"}
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Keep the title clear, add context, then assign priority and timing.
+                </p>
+              </div>
               <button
-                onClick={clearForm}
-                className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/10"
+                onClick={closeTaskModal}
+                aria-label="Close task form"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 text-xl font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
               >
-                Cancel Edit
+                x
               </button>
-            )}
-          </div>
+            </div>
 
-          <div className="grid gap-5">
-            <label className="grid gap-2 text-sm font-semibold text-slate-300">
-              Task title
-              <input
-                type="text"
-                placeholder="Prepare project update"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-300"
-              />
-            </label>
-
-            <label className="grid gap-2 text-sm font-semibold text-slate-300">
-              Description
-              <textarea
-                placeholder="Add the details your future self will need."
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="min-h-32 rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-300"
-              />
-            </label>
-
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-5">
               <label className="grid gap-2 text-sm font-semibold text-slate-300">
-                Status
-                <select
-                  value={form.status}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}
-                  className="rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-emerald-300"
-                >
-                  <option>Pending</option>
-                  <option>In Progress</option>
-                  <option>Completed</option>
-                </select>
-              </label>
-
-              <label className="grid gap-2 text-sm font-semibold text-slate-300">
-                Priority
-                <select
-                  value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                  className="rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-emerald-300"
-                >
-                  <option>Low</option>
-                  <option>Medium</option>
-                  <option>High</option>
-                </select>
-              </label>
-
-              <label className="grid gap-2 text-sm font-semibold text-slate-300">
-                Due date
+                Task title
                 <input
-                  type="date"
-                  value={form.dueDate}
-                  onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                  className="rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none transition focus:border-emerald-300"
+                  type="text"
+                  placeholder="Prepare project update"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-300"
+                  autoFocus
                 />
               </label>
-            </div>
 
-            <button
-              onClick={editingId ? updateTask : createTask}
-              disabled={!canSubmit}
-              className="rounded-xl bg-emerald-300 px-5 py-4 text-base font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
-            >
-              {editingId ? "Save Changes" : "Create Task"}
-            </button>
-          </div>
-        </section>
-      </div>
+              <label className="grid gap-2 text-sm font-semibold text-slate-300">
+                Description
+                <textarea
+                  placeholder="Add the details your future self will need."
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  className="min-h-32 rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-300"
+                />
+              </label>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <label className="grid gap-2 text-sm font-semibold text-slate-300">
+                  Status
+                  <select
+                    value={form.status}
+                    onChange={(e) => setForm({ ...form, status: e.target.value })}
+                    className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-emerald-300"
+                  >
+                    <option>Pending</option>
+                    <option>In Progress</option>
+                    <option>Completed</option>
+                  </select>
+                </label>
+
+                <label className="grid gap-2 text-sm font-semibold text-slate-300">
+                  Priority
+                  <select
+                    value={form.priority}
+                    onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                    className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-emerald-300"
+                  >
+                    <option>Low</option>
+                    <option>Medium</option>
+                    <option>High</option>
+                  </select>
+                </label>
+
+                <label className="grid gap-2 text-sm font-semibold text-slate-300">
+                  Due date
+                  <input
+                    type="date"
+                    value={form.dueDate}
+                    onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                    className="rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none transition focus:border-emerald-300"
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  onClick={closeTaskModal}
+                  className="rounded-xl border border-white/10 px-5 py-3 text-sm font-bold text-slate-200 transition hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={editingId ? updateTask : createTask}
+                  disabled={!canSubmit}
+                  className="rounded-xl bg-emerald-300 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                >
+                  {editingId ? "Save Changes" : "Create Task"}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
       {deleteTarget && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
